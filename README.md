@@ -96,7 +96,7 @@ The `credentials.json` file is intentionally excluded from the repository to pro
   
   Example structure of `credentials.json`:
 
-  FALTA AGREGAR IMAGEN DE EJEMPLO DE JSON
+  ![credentials.json example](images/json_credentials_example.png)
 
   If the file does not exist or credentials are missing, the script exits safely.
 
@@ -151,7 +151,9 @@ The `credentials.json` file is intentionally excluded from the repository to pro
   #### 1. Automated data collection with crontab
 
   To capture aircraft trajectories over time, the ingestion script was executed automatically at fixed intervals using crontab, mainly due to the fact that I wanted to insert records
-  without havin to run the script at a certain hour by myself. FALTA CAPTURA DE CRONTAB
+  without havin to run the script at a certain hour by myself.
+
+  ![La linea que hizo correr cada hora el programa](crontab_execution.png)
 
   #### 2. Defining what will be considered as a “valid” trajectory to create ´Snapshots_validos´
   
@@ -160,7 +162,7 @@ The `credentials.json` file is intentionally excluded from the repository to pro
   - Spanned a sufficient temporal interval. The shortest flight that can be taken on Mexico lasts about [20 minutes](https://www.kooxdiving.com/como-llegar-de-cancun-a-cozumel/), so this      was my chosen time to delimiter the records.
   - Had both initial and final geographic positions. There couldn't be NULL values in either the first and last record of an observed aircraft.
 
-  FALTA IMAGEN DE LIMPIEZA
+  ![SQL Statement de limpieza](images/limpieza_creando_snapshots_validos.png)
 
   This subquery translated into having 1,791 valid snapshots coming from 352 valid aircrafts.
 
@@ -168,7 +170,7 @@ The `credentials.json` file is intentionally excluded from the repository to pro
 
   With the clean data, we could then establish one row per each of the 352 aircrafts that contained their initial and final positions.
 
-  FALTA IMAGEN DE JOINS COMPLEJOS
+  ![SQL Statement de coordenadas por avion](images/coordenadas_por_avion_trayectorias_validas.png)
 
   FALTA DECIR QUE INSERTAMOS LA COLUMNA distancia_inicio_a_fin_km manualmente
 
@@ -203,7 +205,7 @@ The `credentials.json` file is intentionally excluded from the repository to pro
 
   Once the distance is computed, the script updates the corresponding row in ´Trayectorias_validas´ by filling the column _distancia_inicio_fin_km_
 
-  FALTA AGREGAR CAPTURA DE COMO SE VE EL CODIGO FINAL
+  ![Tabla final](images/tabla_final.png)
 
   FALTA DECIR QUE ADEMÁS HACEMOS UN SQL MANUAL PARA PONER LAS HORAS QUE DURO EL TRAYECTO, Y QUE ESTE DEMUESTRA COMO NUESTRO CÓDIGO U OPENSKY FALLAN PORQUE UN VUELO QUE TUVO UNA DISTANCIA    CORTA PUEDE TENER UNA DURACIÓN SIN SENTIDO
 
