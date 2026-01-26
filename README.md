@@ -1,5 +1,7 @@
 # Airplanes OpenSky Project
 
+---
+
 ## Project Description
 
 A project that extracts real-time aircraft state snapshots from the OpenSky Network API and stores them in a SQLite database.  
@@ -29,7 +31,9 @@ The main objectives of this project are:
 │   ├── Airplanes_ingest_flight_snapshots.py # Main ingestion script
 │   ├── Airplanes_compute_flight_snapshots.py # Main analysis script
 │   ├── README.md # Project documentation
-│   ├── credentials.json # API credentials (ignored by Git)
+│   ├── credentials.json # API credentials
+│   ├── images # Contains the images that ilustrate this README
+│   └── README.md # Project documentation
 └────── .gitignore # Files excluded from version control
 ```
 
@@ -96,7 +100,13 @@ The `credentials.json` file is intentionally excluded from the repository to pro
   
   Example structure of `credentials.json`:
 
-  ![credentials.json example](images/json_credentials_example.png)
+  ```python
+  # Python example
+  {
+  "clientId": "your_client_id",
+  "clientSecret": "your_client_secret"
+  }
+  ```
 
   If the file does not exist or credentials are missing, the script exits safely.
 
@@ -139,8 +149,11 @@ The `credentials.json` file is intentionally excluded from the repository to pro
   The ingestion script was executed periodically over an extended time window (24 hours) using a scheduled task (crontab), allowing the database to accumulate temporal snapshots of
   aircraft positions that departed from Mexico in a 24 period, rather than a single static observation.
   
-  We inserted 1,989 snapshots for 464 different airplanes into the `Snapshots` and `Avion_fisico `tables, respectively; nevertheless, the database contained multiple position records per
-  aircraft, including noisy, incomplete, or very short-lived observations.
+  We inserted 1,989 snapshots for 464 different airplanes into the `Avion_fisico` and `Snapshots` tables, respectively; nevertheless, the database contained multiple position records    per aircraft, including noisy, incomplete, or very short-lived observations.
+
+  ![Avion_fisico tabla](images/Avion_fisico.png)
+
+  ![Snapshots tabla](images/Snapshots.png)
 
   Before doing anything with these records, it was necessary to validate which aircraft trajectories were meaningful for analysis.
   This validation was performed directly in SQLite using SQL subqueries, without Python, and allowed me to practice in a closer way the relational thinking and database-level
@@ -151,32 +164,94 @@ The `credentials.json` file is intentionally excluded from the repository to pro
   #### 1. Automated data collection with crontab
 
   To capture aircraft trajectories over time, the ingestion script was executed automatically at fixed intervals using crontab, mainly due to the fact that I wanted to insert records
-  without havin to run the script at a certain hour by myself.
+  without having to run the script at a certain hour by myself.
 
-  ![La linea que hizo correr cada hora el programa](crontab_execution.png)
+  ![La linea que hizo correr cada hora el programa](images/crontab_execution.png)
 
-  #### 2. Defining what will be considered as a “valid” trajectory to create ´Snapshots_validos´
+  #### 2. Defining what will be considered as a “valid” trajectory to create `Snapshots_validos`
   
   Not all aircraft observations made sense, so I defined that the only trajectories that were useful would be those that:
   - Contained two or more snapshots. An initial and final point, at least
   - Spanned a sufficient temporal interval. The shortest flight that can be taken on Mexico lasts about [20 minutes](https://www.kooxdiving.com/como-llegar-de-cancun-a-cozumel/), so this      was my chosen time to delimiter the records.
   - Had both initial and final geographic positions. There couldn't be NULL values in either the first and last record of an observed aircraft.
-
-  ![SQL Statement de limpieza](images/limpieza_creando_snapshots_validos.png)
+    ```sql
+    -- SQL example
+    CREATE TABLE Snapshots_validos AS
+    SELECT *
+    FROM Snapshots
+    WHERE Avion_fisico_id IN (
+        SELECT Avion_fisico_id
+        FROM Snapshots
+        GROUP BY Avion_fisico_id
+        HAVING 
+            COUNT(*) >= 2
+            AND (MAX(posicion_temporal) - MIN(posicion_temporal)) >= 900
+            AND SUM(
+                CASE 
+                    WHEN latitud IS NULL OR longitud IS NULL THEN 1
+                    ELSE 0
+                END
+            ) = 0
+    );
+    ```
 
   This subquery translated into having 1,791 valid snapshots coming from 352 valid aircrafts.
 
-  #### 3. Creating the ´Trayectorias_validas table´
+  #### 3. Creating the `Trayectorias_validas` table
 
-  With the clean data, we could then establish one row per each of the 352 aircrafts that contained their initial and final positions.
-
-  ![SQL Statement de coordenadas por avion](images/coordenadas_por_avion_trayectorias_validas.png)
-
-  FALTA DECIR QUE INSERTAMOS LA COLUMNA distancia_inicio_a_fin_km manualmente
+  With the clean data, we could then establish one row per each plane that contained their initial and final positions.
+  ```sql
+    -- SQL example
+    WITH tiempos AS (
+    SELECT 
+        Avion_fisico_id,
+        MIN(posicion_temporal) AS ts_inicio,
+        MAX(posicion_temporal) AS ts_fin,
+        COUNT(*) AS total_snapshots
+    FROM Snapshots_validos
+    GROUP BY Avion_fisico_id
+    ),
+    
+    inicio AS (
+        SELECT 
+            s.Avion_fisico_id,
+            s.latitud AS lat_inicio,
+            s.longitud AS lon_inicio
+        FROM Snapshots_validos s
+        JOIN tiempos t
+            ON s.Avion_fisico_id = t.Avion_fisico_id
+           AND s.posicion_temporal = t.ts_inicio
+    ),
+    
+    fin AS (
+        SELECT 
+            s.Avion_fisico_id,
+            s.latitud AS lat_fin,
+            s.longitud AS lon_fin
+        FROM Snapshots_validos s
+        JOIN tiempos t
+            ON s.Avion_fisico_id = t.Avion_fisico_id
+           AND s.posicion_temporal = t.ts_fin
+    )
+    
+    SELECT
+        t.Avion_fisico_id,
+        t.ts_inicio AS timestamp_inicio,
+        t.ts_fin AS timestamp_fin,
+        (t.ts_fin - t.ts_inicio) AS duracion_segundos,
+        i.lat_inicio,
+        i.lon_inicio,
+        f.lat_fin,
+        f.lon_fin,
+        t.total_snapshots
+    FROM tiempos t
+    JOIN inicio i ON t.Avion_fisico_id = i.Avion_fisico_id
+    JOIN fin f ON t.Avion_fisico_id = f.Avion_fisico_id;
+  ```
 
   ### Airplanes_compute_flight_snapshots.py
   
-  The final analytic stage was to make something with all the data that we had retrieved, storaged and cleaned. My mind was full of such cool ideas such as making geofences that could       be established for all the 32 states in México and then make a cool graph that showed the distribution of departures and arrivals of flights, but if I am honest with the lector, this      required knowledge of other tools such as Pandas, NumPy, or Mathplot Lib, and those are libraries that I would like to explore in a future project, once I completed their respective       course.
+  The final analytic stage was to make something with all the data that we had retrieved, stored and cleaned. My mind was full of such cool ideas such as making geofences that could       be established for all the 32 states in México and then make a cool graph that showed the distribution of departures and arrivals of flights, but if I am honest with the lector, this      required knowledge of other tools such as Pandas, NumPy, or Matplotlib Lib, and those are libraries that I would like to explore in a future project, once I completed their respective       course.
 
   Therefore, I chose something more approachable to my level, which was computing the geographic distance between the first and last observed positions of each aircraft.
 
@@ -207,7 +282,15 @@ The `credentials.json` file is intentionally excluded from the repository to pro
 
   ![Tabla final](images/tabla_final.png)
 
-  FALTA DECIR QUE ADEMÁS HACEMOS UN SQL MANUAL PARA PONER LAS HORAS QUE DURO EL TRAYECTO, Y QUE ESTE DEMUESTRA COMO NUESTRO CÓDIGO U OPENSKY FALLAN PORQUE UN VUELO QUE TUVO UNA DISTANCIA    CORTA PUEDE TENER UNA DURACIÓN SIN SENTIDO
+  It may caught your atention the existence of the column _duracion_horas_. It was the cherry on top of this project, where I performed a couple SQL statement directly on the database to    incorporate the duration of each trajectory in hours.
+  ```sql
+  -- SQL example
+  ALTER TABLE Trayectorias_validas
+  ADD COLUMN duracion_horas REAL;
+
+  UPDATE Trayectorias_validas
+  SET duracion_horas = ROUND(duracion_segundos / 3600.0, 2);
+  ```
 
 ## Tools Used
 
@@ -233,19 +316,29 @@ The `credentials.json` file is intentionally excluded from the repository to pro
 ## How to test this program on your own computer
 
 1. Ensure Python 3 is installed (falta lo de instalar requests)
-2. Clone the repository
-3. Create a credentials.json file locally (not tracked by Git)
-4. Run the script from the command line:
-
-`python Airplanes_ingest_flight_snapshots.py path/to/database.db`
-
-_path/to/database.db_ refers to the name and extension in which you want to save the tables that will be cretad. For example:
-
-`python Airplanes_ingest_flight_snapshots.py flights_exploratory.sqlite`
+2. Install the required Python package:
+  ```bash
+  pip install requests
+  ```
+3. Clone this repository
+  ```bash
+  git clone <repository_url>
+  ```
+4. Create a credentials.json file locally following the example shown in the **Code explanation** section.
+5. Run the ingestion script from the command line, specifying the path to the SQLite database you want to create.
+  ```bash
+  python Airplanes_ingest_flight_snapshots.py path/to/database.db
+  ```
+  Replace path/to/database.db with the name and extension of your database. For example:
+  ```bash
+  python Airplanes_ingest_flight_snapshots.py flights_exploratory.sqlite
+  ```
+6. After running the script, check that the following tables were created and populated:
+  - `Avion_fisico`
+  - `Snapshots`
 
 ## Security Considerations
 
 - API credentials are never committed to the repository
 - Sensitive files are excluded using `.gitignore`
 - Authentication tokens are handled in-memory only
-- The project follows basic security best practices for API-based applications
