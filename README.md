@@ -32,7 +32,7 @@ The main objectives of this project are:
 │   ├── Airplanes_compute_flight_snapshots.py # Main analysis script
 │   ├── README.md # Project documentation
 │   ├── credentials.json # API credentials
-│   ├── images # Contains the images that ilustrate this README
+│   └── images # Contains the images that ilustrate this README
 └────── .gitignore # Files excluded from version control
 ```
 
