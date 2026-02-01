@@ -33,7 +33,6 @@ The main objectives of this project are:
 │   ├── README.md # Project documentation
 │   ├── credentials.json # API credentials
 │   ├── images # Contains the images that ilustrate this README
-│   └── README.md # Project documentation
 └────── .gitignore # Files excluded from version control
 ```
 
