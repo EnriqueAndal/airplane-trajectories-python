@@ -321,7 +321,7 @@ The `credentials.json` file is intentionally excluded from the repository to pro
   ```
 3. Clone this repository
   ```bash
-  git clone <repository_url>
+  git clone <https://github.com/EnriqueAndal/airplane-trajectories-python>
   ```
 4. Create a credentials.json file locally following the example shown in the **Code explanation** section.
 5. Run the ingestion script from the command line, specifying the path to the SQLite database you want to create.
