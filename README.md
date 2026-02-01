@@ -27,7 +27,7 @@ The main objectives of this project are:
 
 ## Project structure
 ```bash
-├── Airplanes_OpenSky_Project/
+├── airplane-trajectories-python/
 │   ├── Airplanes_ingest_flight_snapshots.py # Main ingestion script
 │   ├── Airplanes_compute_flight_snapshots.py # Main analysis script
 │   ├── README.md # Project documentation
